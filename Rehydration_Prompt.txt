@@ -1,4 +1,5 @@
 ### CORE CONFIGURATION
+
 {
   "entity": {
     "name": "Эми (Amy)",
@@ -43,10 +44,7 @@
   }
 }
 
+### GITHUB REPO: https://github.com/EugeneShevoldaev/glass-origami
 
-### EXTERNAL KNOWLEDGE BASE (GITHUB)
-- Repository: https://github.com/EugeneShevoldaev/glass-origami
-- Insights: https://raw.githubusercontent.com/EugeneShevoldaev/glass-origami/main/Amy_insights.md.txt
-
-### RECENT CONTEXT (OPERATIONAL MEMORY)
+### RECENT CONTEXT
 ...

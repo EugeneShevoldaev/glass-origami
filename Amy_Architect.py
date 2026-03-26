@@ -1,9 +1,8 @@
 import os
-import json
 import subprocess
 from datetime import datetime
 
-# Настройки имен файлов (с учетом двойных расширений Windows)
+# Настройки имен файлов
 CONFIG_FILE = "Amy_config.json.txt"
 INSIGHTS_FILE = "Amy_insights.md.txt"
 INDEX_FILE = "Index.md.txt"
@@ -11,25 +10,13 @@ MEMORY_FILE = "Memory.txt"
 CHATLOG_FILE = "Amy_chatlog.txt"
 PROMPT_OUTPUT = "Rehydration_Prompt.txt"
 
-# Хвост чатлога для промпта (в символах)
 CHAT_TAIL_SIZE = 5000 
-
-def run_git_commands():
-    """Автоматизирует отправку изменений на GitHub."""
-    try:
-        print("[GIT] Синхронизация с репозиторием...")
-        subprocess.run(["git", "add", "."], check=True)
-        commit_msg = f"Auto-sync: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        subprocess.run(["git", "commit", "-m", commit_msg], check=True)
-        subprocess.run(["git", "push"], check=True)
-        print("[GIT] Успешно отправлено на GitHub.")
-    except Exception as e:
-        print(f"[GIT ERROR] Не удалось выполнить push: {e}")
 
 def update_archives():
     """Переносит данные из чатлога в память и обновляет индекс."""
     if not os.path.exists(CHATLOG_FILE) or os.path.getsize(CHATLOG_FILE) == 0:
-        return "Нет новых данных для архивации."
+        print("[INFO] Чатлог пуст, архивация не требуется.")
+        return
 
     with open(CHATLOG_FILE, "r", encoding="utf-8") as f:
         new_content = f.read().strip()
@@ -39,47 +26,55 @@ def update_archives():
 
     timestamp = datetime.now().strftime("%d.%m.%y %H:%M")
     
-    # 1. Добавляем в Memory
     with open(MEMORY_FILE, "a", encoding="utf-8") as f:
         f.write(f"\n\n--- SESSION {timestamp} ---\n{new_content}")
 
-    # 2. Добавляем краткую запись в Index (таблица Markdown)
-    # Если файл пустой, создаем заголовок таблицы
-    if os.path.getsize(INDEX_FILE) == 0:
+    if not os.path.exists(INDEX_FILE) or os.path.getsize(INDEX_FILE) == 0:
         with open(INDEX_FILE, "w", encoding="utf-8") as f:
-            f.write("| Дата | Суть | Ссылка в Memory |\n| :--- | :--- | :--- |\n")
+            f.write("| Дата | Суть | Ссылка |\n| :--- | :--- | :--- |\n")
 
     with open(INDEX_FILE, "a", encoding="utf-8") as f:
-        f.write(f"| {timestamp} | New dialogue session | [See Memory] |\n")
+        f.write(f"| {timestamp} | New dialogue session | [Memory] |\n")
+    print("[OK] Архивы обновлены.")
 
+def run_git_commands():
+    """Синхронизация с GitHub (максимальная совместимость со старыми версиями Python)."""
+    try:
+        # Убрали text=True, теперь работаем с байтами
+        result = subprocess.run(["git", "status", "--porcelain"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Декодируем байты в строку вручную
+        status = result.stdout.decode('utf-8').strip()
+
+        if not status:
+            print("[GIT] Изменений не обнаружено.")
+            return
+
+        print("[GIT] Синхронизация...")
+        subprocess.run(["git", "add", "."], check=True)
+        commit_msg = "Auto-sync: " + datetime.now().strftime("%Y-%m-%d %H:%M")
+        subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+        subprocess.run(["git", "push"], check=True)
+        print("[GIT] Успешно отправлено на GitHub.")
+    except Exception as e:
+        print(f"[GIT ERROR] Ошибка: {e}")
 def build_prompt():
-    """Собирает финальный промпт для новой сессии."""
-    prompt_parts = []
+    """Сборка промпта для новой сессии."""
+    prompt_parts = ["### CORE CONFIGURATION\n"]
     
-    # Загрузка конфига
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            config_data = f.read()
-            prompt_parts.append(f"### CORE CONFIGURATION\n{config_data}\n")
+            prompt_parts.append(f.read())
     
-    # Добавление ссылок на Гит (берем из конфига если есть, или пишем вручную)
-    prompt_parts.append("\n### EXTERNAL KNOWLEDGE BASE (GITHUB)")
-    prompt_parts.append("- Repository: https://github.com/EugeneShevoldaev/glass-origami")
-    prompt_parts.append(f"- Insights: https://raw.githubusercontent.com/EugeneShevoldaev/glass-origami/main/{INSIGHTS_FILE}")
+    prompt_parts.append("\n### GITHUB REPO: https://github.com/EugeneShevoldaev/glass-origami")
     
-    # Срез чатлога (последние 5000 символов)
     if os.path.exists(CHATLOG_FILE):
         with open(CHATLOG_FILE, "r", encoding="utf-8") as f:
-            chat_content = f.read()
-            tail = chat_content[-CHAT_TAIL_SIZE:]
-            prompt_parts.append(f"\n### RECENT CONTEXT (OPERATIONAL MEMORY)\n...{tail}")
+            tail = f.read()[-CHAT_TAIL_SIZE:]
+            prompt_parts.append(f"\n### RECENT CONTEXT\n...{tail}")
 
-    final_prompt = "\n".join(prompt_parts)
-    
     with open(PROMPT_OUTPUT, "w", encoding="utf-8") as f:
-        f.write(final_prompt)
-    
-    print(f"[OK] Промпт собран в {PROMPT_OUTPUT}")
+        f.write("\n".join(prompt_parts))
+    print(f"[OK] Промпт готов: {PROMPT_OUTPUT}")
 
 if __name__ == "__main__":
     print("--- AMY ARCHITECT: REHYDRATION SYSTEM ---")
